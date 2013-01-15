@@ -3,25 +3,25 @@
 
 A Tiling Window Manager for Plan9
 
-Growing tired of your bourgeois operating system and it's XML-based init system but would like a tiling window manager? Well now you have literally no reasons whatsoever not to make Plan9 your main distribution. 
+Weary of your bourgeois operating system and it's backwater [XML-based init system](http://docstore.mik.ua/orelly/unix3/mac/ch02_01.htm)? but miss the experience of a tiling window manager? Now, you have no reasons whatsoever not to throw off the shackles of the capitalist roaders and make the cutting edge research operating system Plan9 your main distribution! 
 
 Patch rio and live free!
 
 ## Usage 
 
-Untiled rio session
+Here we have a bumbly old untiled rio session
 
 ![untiled](http://i.imgur.com/Kcyoi.png)
 
-Use rio's menu or shift-j to tile your screen (You can easily modify this to require a mod key if your setup requires the use of the capital 'j'). 
+Zip, Bang, Kapow! With the use of Rio's nifty right-click menu or the key combination `Shift-J` (You can easily modify this if your setup requires the use of the capital letter J)
 
 ![tiled](http://i.imgur.com/x2AaO.png)
 
-Or, with a bit of hacking, you can have fibonacci tiling.
+With some hacking, you can have fibonacci tiling!
 
 ![fibon](http://i.imgur.com/SvkQo.png)
 
-You can move between active windows with ctrl-shift-j or ctrl-shift-k
+Theres a few other choice keyboard hooks written directly into Rio source, such as moving the active window with `CTRL-Shift-J` and `CTRL-Shift-K`.
 
 ### Disclaimer 
 
