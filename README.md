@@ -3,7 +3,7 @@
 
 A Tiling Window Manager for Plan9
 
-Weary of your bourgeois operating system and it's backwater [XML-based init system](http://docstore.mik.ua/orelly/unix3/mac/ch02_01.htm)? but miss the experience of a tiling window manager? Now, you have no reasons whatsoever not to throw off the shackles of the capitalist roaders and make the cutting edge research operating system Plan9 your main distribution! 
+Weary of your bourgeois operating system and it's backwater [XML-based init system](http://docstore.mik.ua/orelly/unix3/mac/ch02_01.htm), but miss the experience of a tiling window manager? Now, you have no reasons whatsoever not to throw off the shackles of the capitalist roaders and make the cutting edge research operating system Plan9 your main distribution! 
 
 Patch rio and live free!
 
