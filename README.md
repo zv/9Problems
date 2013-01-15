@@ -21,5 +21,5 @@ Or, with a bit of hacking, you can have fibonacci tiling.
 
 You can move between active windows with ctrl-shift-j or ctrl-shift-k
 
-_This tiling window manager is not intended to be used seriously_ 
+_This tiling window manager is not intended to be used seriously and in reality is a loose collection of hacks_ 
 "you have to deal with the shit in order to be the shit" - Rob Pike
