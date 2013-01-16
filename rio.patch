@@ -1,251 +1,250 @@
-26a27
-> void		tile(void);
-55a57
-> 	Tile,
-87d88
-<  [Retile] "Retile",
-92a94
->  [Tile]		"Tile",
-338a341,385
-> void movewindowforward(void) { 
->   Window *w;
->   int i;
->   for(i = 0; i <= nwindow; i++) {
->     if(window[i] == input) {
->       // print("i: %d, nwindow: %d\n", i, nwindow);
->       if (i >= nwindow - 1) {
->         w = window[0];
->         // input = w;
->         incref(w);
->         wtopme(w);
->         wcurrent(w);
->       } else {
->         w = window[i+1];
->         incref(w);
->         wtopme(w);
->         wcurrent(w);
->       }
->     }
->   }
-> }
-> 
-> void movewindowbackwards(void) {
->   Window *w;
->   int i;
->   for(i = 0; i <= nwindow; i++) {
->     if(window[i] == input) {
->       // print("i: %d, nwindow: %d\n", i, nwindow);
->       if (i == 0 ) {
->         w = window[nwindow - 1];
->         // input = w;
->         incref(w);
->         wtopme(w);
->         wcurrent(w);
->       } else {
->         w = window[i-1];
->         incref(w);
->         wtopme(w);
->         wcurrent(w);
->       }
->     }
->   }
-> 
-> }
-> 
-343d389
-< 
-345,346d390
-< 		chanprint(kbdchan, "%s", s);
-< 
-348c392,393
-<     if(strrune())
----
->     // print("s1: 0x%hhux, s2: 0x%hhux, s3: 0x%hhux, s4: 0x%hhux, s5: 0x%hhux\n", s[1], s[2], s[3], s[4], s[5]);
->     // print("%s\n", s);
-350,354c395,409
-< 			shiftdown = utfrune(s+1, Kshift) != nil;
-< 		if(input == nil || sendp(input->ck, s) <= 0)
-< 			free(s);
-< 	}
+27d26
+< void		tile(void);
+57d55
+< 	Tile,
+88a87
+>  [Retile] "Retile",
+94d92
+<  [Tile]		"Tile",
+341,385d338
+< void movewindowforward(void) { 
+<   Window *w;
+<   int i;
+<   for(i = 0; i <= nwindow; i++) {
+<     if(window[i] == input) {
+<       if (i >= nwindow - 1) {
+<         w = window[0];
+<         incref(w);
+<         wtopme(w);
+<         wcurrent(w);
+<         wclose(w);
+<       } else {
+<         w = window[i+1];
+<         incref(w);
+<         wtopme(w);
+<         wcurrent(w);
+<         wclose(w);
+<       }
+<     }
+<   }
 < }
----
-> 		    shiftdown = utfrune(s+1, Kshift) != nil;
-> 		    ctrldown = utfrune(s+1, Kctl) != nil;
-> 		// check if we've hit ctrl-shift-j
-> 		if(shiftdown && s[1] == (char)0x4a) {
->       movewindowforward();
->     } else if (shiftdown && s[1] == (char)0x4b) {
->       movewindowbackwards();
->     } else if (shiftdown && s[1] == (char)0x4c) {
->       Image *i;
->       Rectangle r;
-> 			r = screen->r;
-> 			r.max.x = r.min.x+300;
-> 			r.max.y = r.min.y+80;
-> 			i = allocwindow(wscreen, r, Refbackup, DNofill);
-> 			new(i, FALSE, scrolling, 0, nil, "/bin/rc", nil);
-355a411,418
->       tile();
->     } else if (shiftdown && s[1] == (char)0x20 && s[2] == (char)0x0) {
-> 		  tile();
-> 
-> 		} else {
-> 			if(input == nil || sendp(input->ck, s) <= 0)
-> 		    	free(s);
-> 		}
-356a420,421
-> 	}
-> }
-748a814,816
-> 	case Tile:
-> 		tile();
-> 		break;
-1110d1177
 < 
-1223a1291,1434
-> void
-> tile(void)
-> {
-> 	Window *w;
-> 	Image *im;
-> 	Point o, n;
-> //  Point canvas;
-> 	uint i, k, j; 
-> 	uint ytiles = 0;
-> 	uint xtiles = 1;
+< void movewindowbackwards(void) {
+<   Window *w;
+<   int i;
+<   for(i = 0; i <= nwindow; i++) {
+<     if(window[i] == input) {
+<       if (i == 0 ) {
+<         w = window[nwindow - 1];
+<         incref(w);
+<         wtopme(w);
+<         wcurrent(w);
+<         wclose(w);
+<       } else {
+<         w = window[i-1];
+<         incref(w);
+<         wtopme(w);
+<         wcurrent(w);
+<         wclose(w);
+<       }
+<     }
+<   }
+< 
+< }
+< 
+389a343
 > 
-> 	// int s = 0;
+390a345,346
+> 		chanprint(kbdchan, "%s", s);
 > 
-> 	if (nwindow < 1) 
-> 	{ 
-> 		return; 
-> 	} 
+392,393c348
+<     // print("s1: 0x%hhux, s2: 0x%hhux, s3: 0x%hhux, s4: 0x%hhux, s5: 0x%hhux\n", s[1], s[2], s[3], s[4], s[5]);
+<     // print("%s\n", s);
+---
+>     if(strrune())
+395,419c350,352
+< 		    shiftdown = utfrune(s+1, Kshift) != nil;
+< 		    ctrldown = utfrune(s+1, Kctl) != nil;
+< 		// check if we've hit ctrl-shift-j
+< 		if(shiftdown && s[1] == (char)0x4a) {
+<       movewindowforward();
+<     } else if (shiftdown && s[1] == (char)0x4b) {
+<       movewindowbackwards();
+<     } else if (shiftdown && s[1] == (char)0x4c) {
+<       Image *i;
+<       Rectangle r;
+< 			r = screen->r;
+< 			r.max.x = r.min.x+300;
+< 			r.max.y = r.min.y+80;
+< 			i = allocwindow(wscreen, r, Refbackup, DNofill);
+< 			new(i, FALSE, scrolling, 0, nil, "/bin/rc", nil);
+< 
+<       tile();
+<     } else if (shiftdown && s[1] == (char)0x20 && s[2] == (char)0x0) {
+< 		  tile();
+< 
+< 		} else {
+< 			if(input == nil || sendp(input->ck, s) <= 0)
+< 		    	free(s);
+< 		}
+< 
+---
+> 			shiftdown = utfrune(s+1, Kshift) != nil;
+> 		if(input == nil || sendp(input->ck, s) <= 0)
+> 			free(s);
+422a356,357
 > 
-> 	for(k = 1; xtiles * ytiles < nwindow; k++) {
-> 		switch(k % 2) {
-> 			case 0:
-> 				xtiles++;
-> 				break;
-> 			default:
-> 				ytiles++;
-> 				break;
-> 		}
-> 	}
 > 
-> 	o = subpt(viewr.max, viewr.min);
-> 	n = subpt(view->clipr.max, view->clipr.min);
+814,816d748
+< 	case Tile:
+< 		tile();
+< 		break;
+1177a1110
 > 
-> /*
-> 	unsigned int sw, sh, x, y;
-> 	//canvas = subpt(view -> clipr.max, view -> clipr.min);
->   canvas = subpt(viewr.max, viewr.min);
-> 
-> 	x = canvas.x; 
-> 	y = viewr.min.y;
-> //	x = view -> clipr.max.x;
-> //	y = view -> clipr.min.y;
-> 
-> 	sw = canvas.x; 
-> 	sh = canvas.y; 
-> 
->   for(i = 0; i < nwindow; i++) {
-> 		// print("X: %d, Y: %d, SW : %d, SH: %d, I : %d, NWindow: %d \n", x, y, sw, sh, i, nwindow);
-> 		w = window[i];
-> //    qsort(w, nwindow, sizeof(window[0]), wtopcmp);
-> 
-> 	  Rectangle r;
-> 
->     if(i < nwindow - 1) {
->       if(i % 2) {
->         sh /= 2;
->       } else {
->         sw /= 2;
->       } if((i % 4) == 2 && !s) {
->         x += sw;
->       } else if((i % 4) == 3 && !s) {
->         y += sh; 
->       }
->     }
->     if((i % 4) == 0) {
->       if(s) { y += sh; } 
->       else  { y -= sh; }
->     } else if((i % 4) == 1) { 
->       x += sw;
->     } else if((i % 4) == 2) {
->       y += sh;
->     } else if((i % 4) == 3) {
->       if(s) { x += sw; }
->       else { x -= sw; }
->     }
-> 
->     if(i == 0) {
->       if (nwindow != 1) { sw = canvas.x; } 
->       y = canvas.y; 
->     } else if(i == 1) {
->       sw = canvas.x - sw;
->     }
-> 		r.min.x = x;
-> 		r.min.y = y;
-> 
-> 		r.max.x = sw;
-> 		r.max.y = sh;
-> 
-> 		for(j = 0; j < nhidden; ++j) {
-> 			if(w == hidden[j])
-> 				break;
-> 		}
-> 
-> 		incref(w);
-> 		if(j > nhidden) {
-> 			im = allocimage(display, r, screen->chan, 0, DNofill);
-> 			r = ZR;
-> 		} else { 
-> 			im = allocwindow(wscreen, r, Refbackup, DNofill);
-> 		} 
-> 
-> 		if(im) {
-> 			wsendctlmesg(w, Reshaped, r, im);
-> 		}
-> 		wclose(w);
-> 	}
-> 	flushimage(display, 1);
-> } */
-> 	for(i = 0; i < nwindow; ++i) {
-> 		w = window[i];
-> 		Rectangle r;
-> 		int sw, sh, x, y;
-> 
-> 		sw = o.x / xtiles;
-> 		sh = o.y / ytiles;
-> 		x = sw * (i % xtiles);
-> 		y = sh * ((i / xtiles) % ytiles);
-> 
-> 		r.min.x = x;
-> 		r.min.y = y;
-> 
-> 		r.max.x = x + sw; 
-> 		r.max.y = y + sh; 
-> 
-> 		r = rectaddpt(r, screen->clipr.min);
-> 
-> 		for(j = 0; j < nhidden; ++j)
-> 			if(w == hidden[j])
-> 				break;
-> 
-> 		incref(w);
-> 		if(j < nhidden) {
-> 			im = allocimage(display, r, screen->chan, 0, DNofill);
-> 		} else {
-> 			 im = allocwindow(wscreen, r, Refbackup, DNofill);
-> 		}
-> 
-> 		if(im)
-> 			wsendctlmesg(w, Reshaped, r, im);
-> 		wclose(w);
-> 	}
-> 
-> 	flushimage(display, 1);
-> }
-> 
-1331d1541
-<           tile();
+1291,1434d1223
+< void
+< tile(void)
+< {
+< 	Window *w;
+< 	Image *im;
+< 	Point o, n;
+< //  Point canvas;
+< 	uint i, k, j; 
+< 	uint ytiles = 0;
+< 	uint xtiles = 1;
+< 
+< 	// int s = 0;
+< 
+< 	if (nwindow < 1) 
+< 	{ 
+< 		return; 
+< 	} 
+< 
+< 	for(k = 1; xtiles * ytiles < nwindow; k++) {
+< 		switch(k % 2) {
+< 			case 0:
+< 				xtiles++;
+< 				break;
+< 			default:
+< 				ytiles++;
+< 				break;
+< 		}
+< 	}
+< 
+< 	o = subpt(viewr.max, viewr.min);
+< 	n = subpt(view->clipr.max, view->clipr.min);
+< 
+< /*
+< 	unsigned int sw, sh, x, y;
+< 	//canvas = subpt(view -> clipr.max, view -> clipr.min);
+<   canvas = subpt(viewr.max, viewr.min);
+< 
+< 	x = canvas.x; 
+< 	y = viewr.min.y;
+< //	x = view -> clipr.max.x;
+< //	y = view -> clipr.min.y;
+< 
+< 	sw = canvas.x; 
+< 	sh = canvas.y; 
+< 
+<   for(i = 0; i < nwindow; i++) {
+< 		// print("X: %d, Y: %d, SW : %d, SH: %d, I : %d, NWindow: %d \n", x, y, sw, sh, i, nwindow);
+< 		w = window[i];
+< //    qsort(w, nwindow, sizeof(window[0]), wtopcmp);
+< 
+< 	  Rectangle r;
+< 
+<     if(i < nwindow - 1) {
+<       if(i % 2) {
+<         sh /= 2;
+<       } else {
+<         sw /= 2;
+<       } if((i % 4) == 2 && !s) {
+<         x += sw;
+<       } else if((i % 4) == 3 && !s) {
+<         y += sh; 
+<       }
+<     }
+<     if((i % 4) == 0) {
+<       if(s) { y += sh; } 
+<       else  { y -= sh; }
+<     } else if((i % 4) == 1) { 
+<       x += sw;
+<     } else if((i % 4) == 2) {
+<       y += sh;
+<     } else if((i % 4) == 3) {
+<       if(s) { x += sw; }
+<       else { x -= sw; }
+<     }
+< 
+<     if(i == 0) {
+<       if (nwindow != 1) { sw = canvas.x; } 
+<       y = canvas.y; 
+<     } else if(i == 1) {
+<       sw = canvas.x - sw;
+<     }
+< 		r.min.x = x;
+< 		r.min.y = y;
+< 
+< 		r.max.x = sw;
+< 		r.max.y = sh;
+< 
+< 		for(j = 0; j < nhidden; ++j) {
+< 			if(w == hidden[j])
+< 				break;
+< 		}
+< 
+< 		incref(w);
+< 		if(j > nhidden) {
+< 			im = allocimage(display, r, screen->chan, 0, DNofill);
+< 			r = ZR;
+< 		} else { 
+< 			im = allocwindow(wscreen, r, Refbackup, DNofill);
+< 		} 
+< 
+< 		if(im) {
+< 			wsendctlmesg(w, Reshaped, r, im);
+< 		}
+< 		wclose(w);
+< 	}
+< 	flushimage(display, 1);
+< } */
+< 	for(i = 0; i < nwindow; ++i) {
+< 		w = window[i];
+< 		Rectangle r;
+< 		int sw, sh, x, y;
+< 
+< 		sw = o.x / xtiles;
+< 		sh = o.y / ytiles;
+< 		x = sw * (i % xtiles);
+< 		y = sh * ((i / xtiles) % ytiles);
+< 
+< 		r.min.x = x;
+< 		r.min.y = y;
+< 
+< 		r.max.x = x + sw; 
+< 		r.max.y = y + sh; 
+< 
+< 		r = rectaddpt(r, screen->clipr.min);
+< 
+< 		for(j = 0; j < nhidden; ++j)
+< 			if(w == hidden[j])
+< 				break;
+< 
+< 		incref(w);
+< 		if(j < nhidden) {
+< 			im = allocimage(display, r, screen->chan, 0, DNofill);
+< 		} else {
+< 			 im = allocwindow(wscreen, r, Refbackup, DNofill);
+< 		}
+< 
+< 		if(im)
+< 			wsendctlmesg(w, Reshaped, r, im);
+< 		wclose(w);
+< 	}
+< 
+< 	flushimage(display, 1);
+< }
+< 
+1541a1331
+>           tile();
