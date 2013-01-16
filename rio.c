@@ -343,18 +343,18 @@ void movewindowforward(void) {
   int i;
   for(i = 0; i <= nwindow; i++) {
     if(window[i] == input) {
-      // print("i: %d, nwindow: %d\n", i, nwindow);
       if (i >= nwindow - 1) {
         w = window[0];
-        // input = w;
         incref(w);
         wtopme(w);
         wcurrent(w);
+        wclose(w);
       } else {
         w = window[i+1];
         incref(w);
         wtopme(w);
         wcurrent(w);
+        wclose(w);
       }
     }
   }
@@ -365,18 +365,18 @@ void movewindowbackwards(void) {
   int i;
   for(i = 0; i <= nwindow; i++) {
     if(window[i] == input) {
-      // print("i: %d, nwindow: %d\n", i, nwindow);
       if (i == 0 ) {
         w = window[nwindow - 1];
-        // input = w;
         incref(w);
         wtopme(w);
         wcurrent(w);
+        wclose(w);
       } else {
         w = window[i-1];
         incref(w);
         wtopme(w);
         wcurrent(w);
+        wclose(w);
       }
     }
   }
