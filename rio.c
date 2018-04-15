@@ -27,21 +27,21 @@ void		hide(void);
 void		tile(void);
 void		unhide(int);
 void		newtile(int);
-Image	*sweep(void);
-Image	*bandsize(Window*);
-Image*	drag(Window*, Rectangle*);
-void		refresh(Rectangle);
+Image*	sweep(void);
+Image*	bandsize(Window*);
+Image*	drag(Window*);
 void		resized(void);
 Channel	*exitchan;	/* chan(int) */
 Channel	*winclosechan; /* chan(Window*); */
-Channel *kbdchan;	/* chan(char*); */
+Channel	*kbdchan;	/* chan(char*); */
 Rectangle	viewr;
 int		threadrforkflag = 0;	/* should be RFENVG but that hides rio from plumber */
+int	ctrldown;
 
 void	mousethread(void*);
 void	keyboardthread(void*);
-void winclosethread(void*);
-void deletethread(void*);
+void	winclosethread(void*);
+void	deletethread(void*);
 void	initcmd(void*);
 Channel* initkbd(void);
 
@@ -64,6 +64,7 @@ enum
 	Paste,
 	Snarf,
 	Plumb,
+	Look,
 	Send,
 	Scroll,
 };
@@ -73,6 +74,7 @@ char		*menu2str[] = {
  [Paste]		"paste",
  [Snarf]		"snarf",
  [Plumb]		"plumb",
+ [Look]		"look",
  [Send]		"send",
  [Scroll]		"scroll",
 			nil
@@ -123,7 +125,6 @@ void
 threadmain(int argc, char *argv[])
 {
 	char *initstr, *kbdin, *s;
-	static void *arg[1];
 	char buf[256];
 	Image *i;
 	Rectangle r;
@@ -140,25 +141,24 @@ threadmain(int argc, char *argv[])
 		reverse = ~0xFF;
 		break;
 	case 'f':
-		fontname = ARGF();
-		if(fontname == nil)
-			usage();
+		fontname = EARGF(usage());
 		break;
 	case 'i':
-		initstr = ARGF();
-		if(initstr == nil)
-			usage();
+		initstr = EARGF(usage());
 		break;
 	case 'k':
 		if(kbdin != nil)
 			usage();
-		kbdin = ARGF();
-		if(kbdin == nil)
-			usage();
+		kbdin = EARGF(usage());
 		break;
 	case 's':
 		scrolling = TRUE;
 		break;
+	case 'D':
+		debug++;
+		break;
+	default:
+		usage();
 	}ARGEND
 
 	if(getwd(buf, sizeof buf) == nil)
@@ -191,6 +191,11 @@ threadmain(int argc, char *argv[])
 		exits("display open");
 	}
 	iconinit();
+
+	exitchan = chancreate(sizeof(int), 0);
+	winclosechan = chancreate(sizeof(Window*), 0);
+	deletechan = chancreate(sizeof(char*), 0);
+
 	view = screen;
 	viewr = view->r;
 	mousectl = initmouse(nil, screen);
@@ -205,10 +210,6 @@ threadmain(int argc, char *argv[])
 		error("can't allocate screen");
 	draw(view, viewr, background, nil, ZP);
 	flushimage(display, 1);
-
-	exitchan = chancreate(sizeof(int), 0);
-	winclosechan = chancreate(sizeof(Window*), 0);
-	deletechan = chancreate(sizeof(char*), 0);
 
 	timerinit();
 	threadcreate(keyboardthread, nil, STACK);
@@ -226,8 +227,7 @@ threadmain(int argc, char *argv[])
 		if(kbdin){
 			kbdargv[2] = kbdin;
 			r = screen->r;
-			r.max.x = r.min.x+300;
-			r.max.y = r.min.y+80;
+			r.min.y = r.max.y-Dy(r)/3;
 			i = allocwindow(wscreen, r, Refbackup, DNofill);
 			wkeyboard = new(i, FALSE, scrolling, 0, nil, "/bin/rc", kbdargv);
 			if(wkeyboard == nil)
@@ -269,24 +269,29 @@ void
 getsnarf(void)
 {
 	int i, n, nb, nulls;
-	char *sn, buf[1024];
+	char *s, *sn;
 
 	if(snarffd < 0)
 		return;
 	sn = nil;
 	i = 0;
 	seek(snarffd, 0, 0);
-	while((n = read(snarffd, buf, sizeof buf)) > 0){
-		sn = erealloc(sn, i+n+1);
-		memmove(sn+i, buf, n);
+	for(;;){
+		if(i > MAXSNARF)
+			break;
+		if((s = realloc(sn, i+1024+1)) == nil)
+			break;
+		sn = s;
+		if((n = read(snarffd, sn+i, 1024)) <= 0)
+			break;
 		i += n;
-		sn[i] = 0;
 	}
-	if(i > 0){
-		snarf = runerealloc(snarf, i+1);
+	if(i == 0)
+		return;
+	sn[i] = 0;
+	if((snarf = runerealloc(snarf, i+1)) != nil)
 		cvttorunes(sn, i, snarf, &nb, &nsnarf, &nulls);
-		free(sn);
-	}
+	free(sn);
 }
 
 void
@@ -380,68 +385,78 @@ void movewindowbackwards(void) {
       }
     }
   }
-
 }
 
 void
 keyboardthread(void*)
 {
 	char *s;
+
 	threadsetname("keyboardthread");
+
 	while(s = recvp(kbdchan)){
-    // print("s1: 0x%hhux, s2: 0x%hhux, s3: 0x%hhux, s4: 0x%hhux, s5: 0x%hhux\n", s[1], s[2], s[3], s[4], s[5]);
-    // print("%s\n", s);
 		if(*s == 'k' || *s == 'K')
-		    shiftdown = utfrune(s+1, Kshift) != nil;
+			shiftdown = utfrune(s+1, Kshift) != nil;
 		    ctrldown = utfrune(s+1, Kctl) != nil;
-		// check if we've hit ctrl-shift-j
-		if(shiftdown && s[1] == (char)0x4a) {
-      movewindowforward();
-    } else if (shiftdown && s[1] == (char)0x4b) {
-      movewindowbackwards();
-    } else if (shiftdown && s[1] == (char)0x4c) {
-      Image *i;
-      Rectangle r;
-			r = screen->r;
-			r.max.x = r.min.x+300;
-			r.max.y = r.min.y+80;
-			i = allocwindow(wscreen, r, Refbackup, DNofill);
-			new(i, FALSE, scrolling, 0, nil, "/bin/rc", nil);
-
-      tile();
-    } else if (shiftdown && s[1] == (char)0x20 && s[2] == (char)0x0) {
-		  tile();
-
-		} else {
-			if(input == nil || sendp(input->ck, s) <= 0)
-		    	free(s);
-		}
-
+			// check if we've hit ctrl-shift-j
+			if(shiftdown && s[1] == (char)0x4a) {
+				movewindowforward();
+			} else if (shiftdown && s[1] == (char)0x4b) {
+				movewindowbackwards();
+			} else if (shiftdown && s[1] == (char)0x4c) {
+				Image *i;
+				Rectangle r;
+				r = screen->r;
+				r.max.x = r.min.x+300;
+				r.max.y = r.min.y+80;
+				i = allocwindow(wscreen, r, Refbackup, DNofill);
+				new(i, FALSE, scrolling, 0, nil, "/bin/rc", nil);
+				tile();
+			} else if (shiftdown && s[1] == (char)0x20 && s[2] == (char)0x0) {
+				tile();
+			} else {
+				if(input == nil || sendp(input->ck, s) <= 0)
+					free(s);
+			}
 	}
 }
 
-/*
- * Used by /dev/kbdin
- */
-void
-keyboardsend(char *s, int cnt)
+int
+inborder(Rectangle r, Point xy)
 {
-	if(cnt <= 0)
-		return;
-	if(s[cnt-1] == 0)
-		chanprint(kbdchan, "%s", s);
-	else {
-		Rune *r;
-		int i, nb, nr;
+	return ptinrect(xy, r) && !ptinrect(xy, insetrect(r, Selborder));
+}
 
-		r = runemalloc(cnt);
-		cvttorunes(s, cnt, r, &nb, &nr, nil);
-		for(i=0; i<nr; i++){
-			if(r[i])
-				chanprint(kbdchan, "c%C", r[i]);
-		}
-		free(r);
+Rectangle
+whichrect(Rectangle r, Point p, int which)
+{
+	switch(which){
+	case 0:	/* top left */
+		r = Rect(p.x, p.y, r.max.x, r.max.y);
+		break;
+	case 2:	/* top right */
+		r = Rect(r.min.x, p.y, p.x+1, r.max.y);
+		break;
+	case 6:	/* bottom left */
+		r = Rect(p.x, r.min.y, r.max.x, p.y+1);
+		break;
+	case 8:	/* bottom right */
+		r = Rect(r.min.x, r.min.y, p.x+1, p.y+1);
+		break;
+	case 1:	/* top edge */
+		r = Rect(r.min.x, p.y, r.max.x, r.max.y);
+		break;
+	case 5:	/* right edge */
+		r = Rect(r.min.x, r.min.y, p.x+1, r.max.y);
+		break;
+	case 7:	/* bottom edge */
+		r = Rect(r.min.x, r.min.y, r.max.x, p.y+1);
+		break;
+	case 3:	/* left edge */
+		r = Rect(p.x, r.min.y, r.max.x, r.max.y);
+		break;
 	}
+	return canonrect(r);
 }
 
 int
@@ -449,6 +464,8 @@ portion(int x, int lo, int hi)
 {
 	x -= lo;
 	hi -= lo;
+	if(hi < 20)
+		return x > 0 ? 2 : 0;
 	if(x < 20)
 		return 0;
 	if(x > hi-20)
@@ -457,22 +474,13 @@ portion(int x, int lo, int hi)
 }
 
 int
-whichcorner(Window *w, Point p)
+whichcorner(Rectangle r, Point p)
 {
 	int i, j;
 	
-	i = portion(p.x, w->screenr.min.x, w->screenr.max.x);
-	j = portion(p.y, w->screenr.min.y, w->screenr.max.y);
+	i = portion(p.x, r.min.x, r.max.x);
+	j = portion(p.y, r.min.y, r.max.y);
 	return 3*j+i;
-}
-
-void
-cornercursor(Window *w, Point p, int force)
-{
-	if(w!=nil && winborder(w, p))
-		riosetcursor(corners[whichcorner(w, p)], force);
-	else
-		wsetcursor(w, force);
 }
 
 /* thread to allow fsysproc to synchronize window closing with main proc */
@@ -502,8 +510,9 @@ deletethread(void*)
 		if(i != nil){
 			/* move it off-screen to hide it, since client is slow in letting it go */
 			originwindow(i, i->r.min, view->r.max);
+			freeimage(i);
+			flushimage(display, 1);
 		}
-		freeimage(i);
 		free(s);
 	}
 }
@@ -537,10 +546,9 @@ keyboardhide(void)
 void
 mousethread(void*)
 {
-	int sending, inside, scrolling, moving, band;
+	int sending, inside, scrolling, moving;
 	Window *w, *winput;
 	Image *i;
-	Rectangle r;
 	Point xy;
 	Mouse tmp;
 	enum {
@@ -553,7 +561,6 @@ mousethread(void*)
 	threadsetname("mousethread");
 	sending = FALSE;
 	scrolling = FALSE;
-	moving = FALSE;
 
 	alts[MReshape].c = mousectl->resizec;
 	alts[MReshape].v = nil;
@@ -574,6 +581,7 @@ mousethread(void*)
 				break;
 			}
 		Again:
+			moving = FALSE;
 			winput = input;
 			/* override everything for the keyboard window */
 			if(wkeyboard!=nil && ptinrect(mouse->xy, wkeyboard->screenr)){
@@ -598,53 +606,40 @@ mousethread(void*)
 				else
 					scrolling = mouse->buttons && ptinrect(xy, winput->scrollr);
 				/* topped will be zero or less if window has been bottomed */
-				if(sending == FALSE && !scrolling && winborder(winput, mouse->xy) && winput->topped>0){
+				if(sending == FALSE && !scrolling && inborder(winput->screenr, mouse->xy) && winput->topped>0)
 					moving = TRUE;
-				}else if(inside && (scrolling || winput->mouseopen || (mouse->buttons&1)))
+				else if(inside && (scrolling || winput->mouseopen || (mouse->buttons&1)))
 					sending = TRUE;
 			}else
 				sending = FALSE;
 			if(sending){
 			Sending:
-				if(mouse->buttons == 0){
-					cornercursor(winput, mouse->xy, 0);
+				wsetcursor(winput, FALSE);
+				if(mouse->buttons == 0)
 					sending = FALSE;
-				}else
-					wsetcursor(winput, 0);
 				tmp = mousectl->Mouse;
 				tmp.xy = xy;
 				send(winput->mc.c, &tmp);
 				continue;
 			}
-			w = wpointto(mouse->xy);
-			/* change cursor if over anyone's border */
-			if(w != nil)
-				cornercursor(w, mouse->xy, 0);
-			else
-				riosetcursor(nil, 0);
 			if(moving && (mouse->buttons&7)){
 				incref(winput);
-				band = mouse->buttons & 3;
-				sweeping = 1;
-				if(band)
+				sweeping = TRUE;
+				if(mouse->buttons & 3)
 					i = bandsize(winput);
 				else
-					i = drag(winput, &r);
-				sweeping = 0;
-				if(i != nil){
-					if(band)
-						wsendctlmesg(winput, Reshaped, i->r, i);
-					else
-						wsendctlmesg(winput, Moved, r, i);
-					cornercursor(winput, mouse->xy, 1);
-				}
-				if(wclose(winput) == 0)
-					w = winput;
-				else {
-					riosetcursor(nil, 0);
-					w = nil;
-				}
+					i = drag(winput);
+				sweeping = FALSE;
+				if(i != nil)
+					wsendctlmesg(winput, Reshaped, i->r, i);
+				wclose(winput);
+				continue;
 			}
+			w = wpointto(mouse->xy);
+			if(w!=nil && inborder(w->screenr, mouse->xy))
+				riosetcursor(corners[whichcorner(w->screenr, mouse->xy)]);
+			else
+				wsetcursor(w, FALSE);
 			/* we're not sending the event, but if button is down maybe we should */
 			if(mouse->buttons){
 				/* w->topped will be zero or less if window has been bottomed */
@@ -662,19 +657,17 @@ mousethread(void*)
 				}else{
 					/* if button 1 event in the window, top the window and wait for button up. */
 					/* otherwise, top the window and pass the event on */
-					if(wtop(mouse->xy) && (mouse->buttons!=1 || winborder(w, mouse->xy)))
+					if(wtop(mouse->xy) && (mouse->buttons!=1 || inborder(w->screenr, mouse->xy)))
 						goto Again;
 					goto Drain;
 				}
 			}
-			moving = FALSE;
 			break;
 
 		Drain:
 			do
 				readmouse(mousectl);
 			while(mousectl->buttons);
-			moving = FALSE;
 			goto Again;	/* recalculate mouse position, cursor */
 		}
 }
@@ -713,9 +706,9 @@ resized(void)
 		r.min.y = (r.min.y*n.y)/o.y;
 		r.max.x = (r.max.x*n.x)/o.x;
 		r.max.y = (r.max.y*n.y)/o.y;
+		r = rectaddpt(r, view->clipr.min);
 		if(!goodrect(r))
-			r = rectsubpt(w->i->r, viewr.min);
-		r = rectaddpt(r, screen->clipr.min);
+			r = rectsubpt(w->i->r, subpt(w->i->r.min, r.min));
 		for(j=0; j<nhidden; j++)
 			if(w == hidden[j])
 				break;
@@ -729,7 +722,7 @@ resized(void)
 			wsendctlmesg(w, Reshaped, r, im);
 		wclose(w);
 	}
-	viewr = screen->r;
+	viewr = view->r;
 	flushimage(display, 1);
 }
 
@@ -765,6 +758,32 @@ obscured(Window *w, Rectangle r, int i)
 	return 0;
 }
 
+static char*
+shortlabel(char *s)
+{
+	enum { NBUF=60 };
+	static char buf[NBUF*UTFmax];
+	int i, k, l;
+	Rune r;
+
+	l = utflen(s);
+	if(l < NBUF-2)
+		return estrdup(s);
+	k = i = 0;
+	while(i < NBUF/2){
+		k += chartorune(&r, s+k);
+		i++;
+	}
+	strncpy(buf, s, k);
+	strcpy(buf+k, "...");
+	while((l-i) >= NBUF/2-4){
+		k += chartorune(&r, s+k);
+		i++;
+	}
+	strcat(buf, s+k);
+	return estrdup(buf);
+}
+
 void
 button3menu(void)
 {
@@ -786,13 +805,13 @@ button3menu(void)
 		n = nelem(menu3str)-Hidden-1;
 	for(i=0; i<n; i++){
 		free(menu3str[i+Hidden]);
-		menu3str[i+Hidden] = estrdup(hidden[i]->label);
+		menu3str[i+Hidden] = shortlabel(hidden[i]->label);
 	}
 	for(i+=Hidden; menu3str[i]; i++){
 		free(menu3str[i]);
 		menu3str[i] = nil;
 	}
-	sweeping = 1;
+	sweeping = TRUE;
 	switch(i = menuhit(3, mousectl, &menu3, wscreen)){
 	case -1:
 		break;
@@ -824,7 +843,7 @@ button3menu(void)
 		unhide(i);
 		break;
 	}
-	sweeping = 0;
+	sweeping = FALSE;
 }
 
 void
@@ -855,6 +874,10 @@ button2menu(Window *w)
 		wplumb(w);
 		break;
 
+	case Look:
+		wlook(w);
+		break;
+
 	case Send:
 		getsnarf();
 		wsnarf(w);
@@ -878,17 +901,17 @@ button2menu(Window *w)
 			wshow(w, w->nr);
 		break;
 	}
-	wsendctlmesg(w, Wakeup, ZR, nil);
 	flushimage(display, 1);
+	wsendctlmesg(w, Wakeup, ZR, nil);
 }
 
 Point
 onscreen(Point p)
 {
 	p.x = max(screen->clipr.min.x, p.x);
-	p.x = min(screen->clipr.max.x, p.x);
+	p.x = min(screen->clipr.max.x-1, p.x);
 	p.y = max(screen->clipr.min.y, p.y);
-	p.y = min(screen->clipr.max.y, p.y);
+	p.y = min(screen->clipr.max.y-1, p.y);
 	return p;
 }
 
@@ -901,7 +924,7 @@ sweep(void)
 
 	i = nil;
 	menuing = TRUE;
-	riosetcursor(&crosscursor, 1);
+	riosetcursor(&crosscursor);
 	while(mouse->buttons == 0)
 		readmouse(mousectl);
 	p0 = onscreen(mouse->xy);
@@ -910,12 +933,10 @@ sweep(void)
 	r.max = p;
 	oi = nil;
 	while(mouse->buttons == 4){
-		readmouse(mousectl);
-		if(mouse->buttons != 4 && mouse->buttons != 0)
-			break;
 		if(!eqpt(mouse->xy, p)){
 			p = onscreen(mouse->xy);
 			r = canonrect(Rpt(p0, p));
+			r = whichrect(r, p, whichcorner(r, p));
 			if(Dx(r)>5 && Dy(r)>5){
 				i = allocwindow(wscreen, r, Refnone, DNofill);
 				freeimage(oi);
@@ -924,31 +945,31 @@ sweep(void)
 				oi = i;
 				border(i, r, Selborder, sizecol, ZP);
 				draw(i, insetrect(r, Selborder), cols[BACK], nil, ZP);
-				flushimage(display, 1);
 			}
 		}
+		readmouse(mousectl);
 	}
 	if(mouse->buttons != 0)
 		goto Rescue;
-	if(i==nil || Dx(i->r)<100 || Dy(i->r)<3*font->height)
+	if(i==nil || !goodrect(r))
 		goto Rescue;
 	oi = i;
 	i = allocwindow(wscreen, oi->r, Refbackup, DNofill);
 	freeimage(oi);
 	if(i == nil)
 		goto Rescue;
-	cornercursor(input, mouse->xy, 1);
+	riosetcursor(corners[whichcorner(i->r, mouse->xy)]);
 	goto Return;
 
  Rescue:
+	riosetcursor(nil);
 	freeimage(i);
 	i = nil;
-	cornercursor(input, mouse->xy, 1);
+	flushimage(display, 1);
 	while(mouse->buttons)
 		readmouse(mousectl);
 
  Return:
-	moveto(mousectl, mouse->xy);	/* force cursor update; ugly */
 	menuing = FALSE;
 	return i;
 }
@@ -987,110 +1008,38 @@ drawborder(Rectangle r, int show)
 }
 
 Image*
-drag(Window *w, Rectangle *rp)
+drag(Window *w)
 {
-	Image *i, *ni;
 	Point p, op, d, dm, om;
 	Rectangle r;
 
-	i = w->i;
 	menuing = TRUE;
+	riosetcursor(&boxcursor);
 	om = mouse->xy;
-	riosetcursor(&boxcursor, 1);
-	dm = subpt(mouse->xy, w->screenr.min);
-	d = subpt(i->r.max, i->r.min);
-	op = subpt(mouse->xy, dm);
+	dm = subpt(om, w->screenr.min);
+	d = subpt(w->screenr.max, w->screenr.min);
+	op = subpt(om, dm);
 	drawborder(Rect(op.x, op.y, op.x+d.x, op.y+d.y), 1);
-	flushimage(display, 1);
-	while(mouse->buttons == 4){
+	while(mouse->buttons==4){
 		p = subpt(mouse->xy, dm);
 		if(!eqpt(p, op)){
 			drawborder(Rect(p.x, p.y, p.x+d.x, p.y+d.y), 1);
-			flushimage(display, 1);
 			op = p;
 		}
 		readmouse(mousectl);
 	}
 	r = Rect(op.x, op.y, op.x+d.x, op.y+d.y);
 	drawborder(r, 0);
-	cornercursor(w, mouse->xy, 1);
-	moveto(mousectl, mouse->xy);	/* force cursor update; ugly */
+	p = mouse->xy;
+	riosetcursor(inborder(r, p) ? corners[whichcorner(r, p)] : nil);
 	menuing = FALSE;
-	flushimage(display, 1);
-	if(mouse->buttons!=0 || (ni=allocwindow(wscreen, r, Refbackup, DNofill))==nil){
-		moveto(mousectl, om);
+	if(mouse->buttons!=0 || !goodrect(r) || eqrect(r, w->screenr)){
+		flushimage(display, 1);
 		while(mouse->buttons)
 			readmouse(mousectl);
-		*rp = Rect(0, 0, 0, 0);
 		return nil;
 	}
-	draw(ni, ni->r, i, nil, i->r.min);
-	*rp = r;
-	return ni;
-}
-
-Point
-cornerpt(Rectangle r, Point p, int which)
-{
-	switch(which){
-	case 0:	/* top left */
-		p = Pt(r.min.x, r.min.y);
-		break;
-	case 2:	/* top right */
-		p = Pt(r.max.x,r.min.y);
-		break;
-	case 6:	/* bottom left */
-		p = Pt(r.min.x, r.max.y);
-		break;
-	case 8:	/* bottom right */
-		p = Pt(r.max.x, r.max.y);
-		break;
-	case 1:	/* top edge */
-		p = Pt(p.x,r.min.y);
-		break;
-	case 5:	/* right edge */
-		p = Pt(r.max.x, p.y);
-		break;
-	case 7:	/* bottom edge */
-		p = Pt(p.x, r.max.y);
-		break;
-	case 3:		/* left edge */
-		p = Pt(r.min.x, p.y);
-		break;
-	}
-	return p;
-}
-
-Rectangle
-whichrect(Rectangle r, Point p, int which)
-{
-	switch(which){
-	case 0:	/* top left */
-		r = Rect(p.x, p.y, r.max.x, r.max.y);
-		break;
-	case 2:	/* top right */
-		r = Rect(r.min.x, p.y, p.x, r.max.y);
-		break;
-	case 6:	/* bottom left */
-		r = Rect(p.x, r.min.y, r.max.x, p.y);
-		break;
-	case 8:	/* bottom right */
-		r = Rect(r.min.x, r.min.y, p.x, p.y);
-		break;
-	case 1:	/* top edge */
-		r = Rect(r.min.x, p.y, r.max.x, r.max.y);
-		break;
-	case 5:	/* right edge */
-		r = Rect(r.min.x, r.min.y, p.x, r.max.y);
-		break;
-	case 7:	/* bottom edge */
-		r = Rect(r.min.x, r.min.y, r.max.x, p.y);
-		break;
-	case 3:		/* left edge */
-		r = Rect(p.x, r.min.y, r.max.x, r.max.y);
-		break;
-	}
-	return canonrect(r);
+	return allocwindow(wscreen, r, Refbackup, DNofill);
 }
 
 Image*
@@ -1098,40 +1047,35 @@ bandsize(Window *w)
 {
 	Rectangle r, or;
 	Point p, startp;
-	int which, but;
+	int which, owhich, but;
 
-	p = mouse->xy;
+	owhich = -1;
+	or = w->screenr;
 	but = mouse->buttons;
-	which = whichcorner(w, p);
-	p = cornerpt(w->screenr, p, which);
-	wmovemouse(w, p);
-	readmouse(mousectl);
-	r = whichrect(w->screenr, p, which);
-	drawborder(r, 1);
-	or = r;
-	startp = p;
-	
-	while(mouse->buttons == but){
+	startp = onscreen(mouse->xy);
+	drawborder(or, 1);
+	while(mouse->buttons == but) {
 		p = onscreen(mouse->xy);
-		r = whichrect(w->screenr, p, which);
+		which = whichcorner(or, p);
+		if(which != owhich && which != 4 && (owhich|~which) & 1){
+			owhich = which;
+			riosetcursor(corners[which]);
+		}
+		r = whichrect(or, p, owhich);
 		if(!eqrect(r, or) && goodrect(r)){
-			drawborder(r, 1);
-			flushimage(display, 1);
 			or = r;
+			drawborder(r, 1);
 		}
 		readmouse(mousectl);
 	}
-	p = mouse->xy;
 	drawborder(or, 0);
-	flushimage(display, 1);
-	wsetcursor(w, 1);
-	if(mouse->buttons!=0 || Dx(or)<100 || Dy(or)<3*font->height){
+	if(mouse->buttons!=0 || !goodrect(or) || eqrect(or, w->screenr)
+	|| abs(p.x-startp.x)+abs(p.y-startp.y) <= 1){
+		flushimage(display, 1);
 		while(mouse->buttons)
 			readmouse(mousectl);
 		return nil;
 	}
-	if(abs(p.x-startp.x)+abs(p.y-startp.y) <= 1)
-		return nil;
 	return allocwindow(wscreen, or, Refbackup, DNofill);
 }
 
@@ -1141,7 +1085,7 @@ pointto(int wait)
 	Window *w;
 
 	menuing = TRUE;
-	riosetcursor(&sightcursor, 1);
+	riosetcursor(&sightcursor);
 	while(mouse->buttons == 0)
 		readmouse(mousectl);
 	if(mouse->buttons == 4)
@@ -1151,7 +1095,7 @@ pointto(int wait)
 	if(wait){
 		while(mouse->buttons){
 			if(mouse->buttons!=4 && w !=nil){	/* cancel */
-				cornercursor(input, mouse->xy, 0);
+				riosetcursor(nil);
 				w = nil;
 			}
 			readmouse(mousectl);
@@ -1159,8 +1103,7 @@ pointto(int wait)
 		if(w != nil && wpointto(mouse->xy) != w)
 			w = nil;
 	}
-	cornercursor(input, mouse->xy, 0);
-	moveto(mousectl, mouse->xy);	/* force cursor update; ugly */
+	riosetcursor(nil);
 	menuing = FALSE;
 	return w;
 }
@@ -1196,16 +1139,14 @@ move(void)
 {
 	Window *w;
 	Image *i;
-	Rectangle r;
 
 	w = pointto(FALSE);
 	if(w == nil)
 		return;
 	incref(w);
-	i = drag(w, &r);
+	i = drag(w);
 	if(i)
-		wsendctlmesg(w, Moved, r, i);
-	cornercursor(w, mouse->xy, 1);
+		wsendctlmesg(w, Reshaped, i->r, i);
 	wclose(w);
 }
 
@@ -1301,8 +1242,7 @@ tile(void)
 
 	// int s = 0;
 
-	if (nwindow < 1) 
-	{ 
+	if (nwindow < 1) { 
 		return; 
 	} 
 
@@ -1522,10 +1462,17 @@ kbdproc(void *arg)
 	if((kfd = open("/dev/kbd", OREAD)) >= 0){
 		close(fd);
 
+		/* only serve a kbd file per window when we got one */
+		servekbd = 1;
+
 		/* read kbd state */
-		while((n = read(kfd, buf, sizeof(buf))) > 0)
-			chanprint(c, "%.*s", n, buf);
-		close(kfd);
+		while((n = read(kfd, buf, sizeof(buf)-1)) > 0){
+			e = buf+n;
+			e[-1] = 0;
+			e[0] = 0;
+			for(p = buf; p < e; p += strlen(p)+1)
+				chanprint(c, "%s", p);
+		}
 	} else {
 		/* read single characters */
 		p = buf;
@@ -1546,6 +1493,7 @@ kbdproc(void *arg)
 			p = buf + n;
 		}
 	}
+	send(exitchan, nil);
 }
 
 Channel*
@@ -1559,7 +1507,7 @@ initkbd(void)
 	if(e = recvp(c)){
 		chanfree(c);
 		c = nil;
-		werrstr(e);
+		werrstr("%s", e);
 		free(e);
 	}
 	return c;
